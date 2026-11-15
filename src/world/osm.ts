@@ -36,16 +36,20 @@ function cellBBox(key: string) {
 const ROAD_RE =
   'motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|service|road';
 
-async function overpass(query: string): Promise<any> {
+async function overpass(query: string, attempts = 4, timeoutMs = 25000): Promise<any> {
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     const url = ENDPOINTS[endpointIdx % ENDPOINTS.length];
     try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), timeoutMs);
       const res = await fetch(url, {
+        signal: ctl.signal,
         method: 'POST',
         body: 'data=' + encodeURIComponent(query),
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
+      clearTimeout(timer);
       if (res.ok) return await res.json();
       lastErr = new Error('overpass ' + res.status);
       if (res.status === 429 || res.status >= 500) {
@@ -107,10 +111,11 @@ export async function findRunways(lat: number, lon: number, radiusKm = 40): Prom
   const d = radiusKm / 111;
   const q = `[out:json][timeout:30];way["aeroway"="runway"](${lat - d},${lon - d / Math.cos((lat * Math.PI) / 180)},${lat + d},${lon + d / Math.cos((lat * Math.PI) / 180)});out tags geom;`;
   try {
-    const json = await (queue = queue.then(
-      () => overpass(q),
-      () => overpass(q),
-    ));
+    // not queued behind road cells: the player is waiting for this one
+    const json = await Promise.race([
+      overpass(q, 2, 12000),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+    ]) as any;
     return (json.elements ?? []).filter((e: any) => e.type === 'way' && e.geometry) as OsmWay[];
   } catch {
     return [];

@@ -8,7 +8,7 @@ import {
   Matrix3,
   Matrix4,
   Model,
-  Ray,
+  PerspectiveFrustum,
   ShadowMode,
   Transforms,
   type TerrainProvider,
@@ -44,8 +44,8 @@ import { Car, Plane, Walker, type Ground, type Pose } from './vehicles';
 const D2R = Math.PI / 180;
 
 // Eye points in model space (glTF: +X left, +Y up, +Z forward) — see scripts/build-models.mjs
-const CAR_EYE = { x: -0.37, y: 1.15, z: -0.1 };
-const PLANE_EYE = { x: -0.5, y: 3.6, z: 15.6 };
+const CAR_EYE = { x: -0.37, y: 1.17, z: -0.12 };
+const PLANE_EYE = { x: -0.5, y: 4.88, z: 15.4 };
 
 const haversine = (a: LatLon, b: LatLon) => {
   const R = 6371000;
@@ -86,11 +86,10 @@ export class Game implements GameAPI {
   private camDist = 7.5;
   private camPos: Cartesian3 | null = null;
   private lastT = performance.now();
-  private timers = { pos: 0, cells: 0, city: 0, poi: 0, ambient: 0, night: 0, weather: 0, fps: 0 };
+  private timers = { pos: 0, cells: 0, city: 0, poi: 0, ambient: 0, night: 0, weather: 0, fps: 0, env: 0 };
   private frames = 0;
   private seenPoi = new Set<string>();
   private lastCityId: string | null = null;
-  private pickCache = new Map<string, number | undefined>();
   private scratch = { m3: new Matrix3(), m4: new Matrix4() };
 
   constructor(private container: HTMLElement, private overlay: HTMLElement, private audio: AudioAPI) {}
@@ -193,6 +192,8 @@ export class Game implements GameAPI {
       const city = this.nearestCity(t.lat, t.lon);
       await this.enterCity(city, t.lat, t.lon);
       this.roads.setOrigin(t.lat, t.lon);
+      this.meshCache.clear();
+      this.meshPending.clear();
       this.osmLayer.clear();
       // look down at the destination while terrain and data stream in
       this.viewer.camera.setView({
@@ -251,6 +252,7 @@ export class Game implements GameAPI {
       this.terrainKind = want;
     }
     this.meshGround = city?.buildings === 'helsinki';
+    this.ground.noisy = this.meshGround;
     // OSM extrusion style per city
     if (city?.buildings === 'osm') this.osmLayer.style = FACADES[city.id] ?? FACADES.osm;
     this.osmLayer.defaultLevels = city?.id === 'paris' ? 6 : city?.id === 'newyork' ? 5 : 3;
@@ -293,7 +295,7 @@ export class Game implements GameAPI {
       h = this.viewer.scene.globe.getHeight(c);
       if (h !== undefined && performance.now() - t0 > 1500) {
         if (!this.meshGround) return h;
-        const m = this.pickDown(lat, lon, 400);
+        const m = await this.sampleMesh(lat, lon);
         if (m !== undefined) return m;
       }
       await sleep(250);
@@ -331,32 +333,71 @@ export class Game implements GameAPI {
   }
 
   private ground: Ground = {
+    noisy: false,
     height: (x: number, y: number, fromZ?: number) => {
       const [lat, lon] = this.roads.toLatLon(x, y);
       if (this.meshGround) {
-        const key = `${Math.round(x * 2)},${Math.round(y * 2)},${fromZ === undefined ? 'u' : Math.round(fromZ)}`;
-        if (this.pickCache.has(key)) return this.pickCache.get(key);
-        const h = this.pickDown(lat, lon, fromZ === undefined ? 300 : fromZ + 2.5);
-        this.pickCache.set(key, h);
-        return h;
+        void fromZ;
+        return this.meshHeight(x, y);
       }
       return this.viewer.scene.globe.getHeight(Cartographic.fromDegrees(lon, lat));
     },
   };
 
-  /** first surface below `fromHeight` (3D Tiles mesh), excluding our own vehicles */
-  private pickDown(lat: number, lon: number, fromHeight: number): number | undefined {
-    const scene = this.viewer.scene;
-    const origin = Cartesian3.fromDegrees(lon, lat, fromHeight);
-    const down = Cartesian3.negate(scene.globe.ellipsoid.geodeticSurfaceNormal(origin, new Cartesian3()), new Cartesian3());
+  // ---- mesh ground (photogrammetry cities): asynchronous most-detailed sampling into a 2 m grid.
+  // Synchronous picking (sampleHeight / pickFromRay) proved unreliable on some GPUs, so we sample
+  // ahead of the player with sampleHeightMostDetailed and read heights from the cache.
+  private meshCache = new Map<string, number>();
+  private meshPending = new Map<string, [number, number]>();
+  private meshInflight = false;
+
+  private meshHeight(x: number, y: number): number | undefined {
+    const i = Math.round(x / 2);
+    const j = Math.round(y / 2);
+    const key = i + ',' + j;
+    const h = this.meshCache.get(key);
+    if (h === undefined && !this.meshPending.has(key)) this.meshPending.set(key, [i * 2, j * 2]);
+    return h;
+  }
+
+  private prefetchMesh(p: Pose) {
+    const h = p.heading * D2R;
+    const fx = Math.sin(h);
+    const fy = Math.cos(h);
+    const speed = this.mode === 'car' ? Math.abs(this.car.speed) : 2;
+    const ahead = Math.min(80, 12 + speed * 2.5);
+    for (let d = -4; d <= ahead; d += 2)
+      for (const s of [-2, 0, 2]) this.meshHeight(p.x + fx * d + fy * s, p.y + fy * d - fx * s);
+    if (this.meshInflight || !this.meshPending.size) return;
+    const batch = [...this.meshPending.entries()].slice(0, 48);
+    const cartos = batch.map(([, [x, y]]) => {
+      const [lat, lon] = this.roads.toLatLon(x, y);
+      return Cartographic.fromDegrees(lon, lat);
+    });
+    this.meshInflight = true;
     const exclude: any[] = [this.carModel, this.planeModel].filter(Boolean);
+    this.viewer.scene
+      .sampleHeightMostDetailed(cartos, exclude, 0.2)
+      .then((res) => {
+        res.forEach((c, k) => {
+          const key = batch[k][0];
+          this.meshPending.delete(key);
+          if (c && Number.isFinite(c.height)) this.meshCache.set(key, c.height);
+        });
+        if (this.meshCache.size > 40000) this.meshCache.clear();
+      })
+      .catch(() => batch.forEach(([key]) => this.meshPending.delete(key)))
+      .finally(() => (this.meshInflight = false));
+  }
+
+  private async sampleMesh(lat: number, lon: number): Promise<number | undefined> {
     try {
-      const hit = scene.pickFromRay(new Ray(origin, down), exclude, 0.1);
-      if (hit?.position) return Cartographic.fromCartesian(hit.position).height;
+      const exclude: any[] = [this.carModel, this.planeModel].filter(Boolean);
+      const r = await this.viewer.scene.sampleHeightMostDetailed([Cartographic.fromDegrees(lon, lat)], exclude, 0.2);
+      return r[0] && Number.isFinite(r[0].height) ? r[0].height : undefined;
     } catch {
-      /* picking unsupported */
+      return undefined;
     }
-    return undefined;
   }
 
   private async placeMode(mode: TravelMode, x: number, y: number, z: number, heading: number, fresh: boolean) {
@@ -444,7 +485,7 @@ export class Game implements GameAPI {
     this.lastT = now;
     this.frames++;
     if (!this.ready) return;
-    this.pickCache.clear();
+    if (this.meshGround && !this.teleporting) this.prefetchMesh(this.pose());
     const inp = this.input.frame();
     if (!this.teleporting) {
       if (inp.pressed.has('view')) this.toggleView();
@@ -548,6 +589,10 @@ export class Game implements GameAPI {
         altitude: this.mode === 'plane' ? this.plane.agl : 0,
       });
     }
+    if (t.env > 10) {
+      t.env = 0;
+      this.emitEnv(); // keeps the HUD clock ticking
+    }
     if (t.weather > 900) {
       t.weather = 0;
       this.updateZone(lat, lon);
@@ -569,6 +614,8 @@ export class Game implements GameAPI {
     const p = this.pose();
     const [lat, lon] = this.roads.toLatLon(p.x, p.y);
     this.roads.setOrigin(lat, lon);
+    this.meshCache.clear();
+    this.meshPending.clear();
     for (const v of [this.car.pose, this.walker.pose, this.plane.pose]) {
       v.x -= p.x;
       v.y -= p.y;
@@ -612,6 +659,10 @@ export class Game implements GameAPI {
 
   private updateCamera(dt: number, lat: number, lon: number, p: Pose, position: Cartesian3) {
     const cam = this.viewer.camera;
+    // wider field of view inside vehicles so the dashboard doesn't dominate the screen
+    const fov = (this.view === 'first' && this.mode !== 'walk' ? 78 : 62) * D2R;
+    const fr = cam.frustum as PerspectiveFrustum;
+    if (Math.abs((fr.fov ?? 0) - fov) > 1e-3) fr.fov = fov;
     const m = this.poseMatrix(lat, lon, p, this.scratch.m4);
     const col = (i: number) => Cartesian3.normalize(new Cartesian3(m[i * 4], m[i * 4 + 1], m[i * 4 + 2]), new Cartesian3());
     const left = col(0);
@@ -628,7 +679,7 @@ export class Game implements GameAPI {
       // head look: yaw/pitch offsets relative to the vehicle
       this.camYaw = Math.max(-110, Math.min(110, this.camYaw)) * (1 - Math.min(1, dt * 0.8));
       const yaw = this.camYaw * D2R;
-      const pitch = (this.camPitch + 7) * D2R * 0.6 - 3 * D2R;
+      const pitch = ((this.camPitch + 12) * 0.6 + (this.mode === "plane" ? -4 : 0)) * D2R;
       let dir = rotateAround(fwd, up, -yaw);
       const sideAxis = Cartesian3.cross(dir, up, new Cartesian3());
       dir = rotateAround(dir, Cartesian3.normalize(sideAxis, sideAxis), pitch);

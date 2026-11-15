@@ -33,13 +33,12 @@ export class Input {
   private overlay: HTMLElement | null = null;
   private mode: TravelMode = 'car';
 
-  constructor(private canvas: HTMLCanvasElement, overlayRoot: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement, overlayRoot: HTMLElement) {
     addEventListener('keydown', (e) => {
       if (!this.enabled || isTyping(e)) return;
       const k = e.code;
       if (!this.keys.has(k)) {
         if (k === 'KeyV' || k === 'KeyC') this.edges.add('view');
-        if (k === 'KeyH' && false) this.edges.add('horn');
         if (k === 'Space' && this.mode === 'car') this.edges.add('horn');
         if (k === 'Digit1') this.edges.add('mode:car');
         if (k === 'Digit2') this.edges.add('mode:walk');

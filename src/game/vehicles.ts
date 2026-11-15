@@ -6,6 +6,8 @@ import type { RoadNetwork } from './roads';
 export interface Ground {
   /** ground (or deck) height at local x/y; `fromZ` = current height (used to avoid snapping onto roofs/canopies) */
   height(x: number, y: number, fromZ?: number): number | undefined;
+  /** true when samples may hit walls/roofs/trees (photogrammetry mesh) and need outlier filtering */
+  noisy: boolean;
 }
 
 export interface Pose {
@@ -113,14 +115,20 @@ export class Car {
     // vertical: follow ground with suspension-like smoothing
     const hf = Math.sin(h) * 1.4;
     const hn = Math.cos(h) * 1.4;
-    const g0 = ground.height(p.x, p.y, p.z);
-    const gF = ground.height(p.x + hf, p.y + hn, p.z);
-    const gB = ground.height(p.x - hf, p.y - hn, p.z);
-    const gR = ground.height(p.x + Math.cos(h) * 0.8, p.y - Math.sin(h) * 0.8, p.z);
-    const gL = ground.height(p.x - Math.cos(h) * 0.8, p.y + Math.sin(h) * 0.8, p.z);
+    // reject samples that jump too far from the current height: on photogrammetry meshes these are
+    // walls, roofs, trees or parked vehicles rather than the road surface
+    const ok = (v: number | undefined, tol: number) => (!ground.noisy || (v !== undefined && Math.abs(v - p.z) < tol) ? v : undefined);
+    const g0 = ok(ground.height(p.x, p.y, p.z), 1.2 + Math.abs(this.speed) * 0.05);
+    const gF = ok(ground.height(p.x + hf, p.y + hn, p.z), 1.0);
+    const gB = ok(ground.height(p.x - hf, p.y - hn, p.z), 1.0);
+    const gR = ok(ground.height(p.x + Math.cos(h) * 0.8, p.y - Math.sin(h) * 0.8, p.z), 0.5);
+    const gL = ok(ground.height(p.x - Math.cos(h) * 0.8, p.y + Math.sin(h) * 0.8, p.z), 0.5);
     let target = g0 ?? p.z;
     if (deck !== undefined) target = Math.max(target, deck);
-    if (target > p.z) {
+    if (g0 === undefined && deck === undefined) {
+      // ground not streamed in yet: hold height instead of falling through the world
+      this.zVel = 0;
+    } else if (target > p.z) {
       p.z = lerp(p.z, target, Math.min(1, dt * 18));
       this.zVel = 0;
     } else {
@@ -132,11 +140,11 @@ export class Car {
       }
     }
     if (deck === undefined && gF !== undefined && gB !== undefined) {
-      p.pitch = lerp(p.pitch, Math.atan2(gF - gB, 2.8) / D2R, Math.min(1, dt * 8));
+      p.pitch = lerp(p.pitch, clamp(Math.atan2(gF - gB, 2.8) / D2R, -15, 15), Math.min(1, dt * 8));
     } else p.pitch = lerp(p.pitch, 0, Math.min(1, dt * 4));
     if (gR !== undefined && gL !== undefined) {
       const bodyRoll = -this.steer * clamp(Math.abs(this.speed) / 30, 0, 1) * 2.5; // lean out of turns
-      p.roll = lerp(p.roll, Math.atan2(gL - gR, 1.6) / D2R + bodyRoll, Math.min(1, dt * 8));
+      p.roll = lerp(p.roll, clamp(Math.atan2(gL - gR, 1.6) / D2R, -10, 10) + bodyRoll, Math.min(1, dt * 8));
     }
 
     // engine rpm with simulated automatic gearbox

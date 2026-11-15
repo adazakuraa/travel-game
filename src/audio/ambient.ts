@@ -17,7 +17,8 @@ export class Ambient {
   private layers: Record<'urban' | 'traffic' | 'wind' | 'rain' | 'crackle' | 'water' | 'cricket', GainNode>;
   private windBp: BiquadFilterNode;
   private waterLp: BiquadFilterNode;
-  private timer: ReturnType<typeof setInterval>;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected timer: ReturnType<typeof setInterval>;
   private nextBird = 0;
 
   constructor(private ctx: AudioContext, private out: AudioNode, noise: NoiseHub) {
@@ -95,7 +96,9 @@ export class Ambient {
     // ground ambience fades between 50 m and 300 m AGL; wind survives aloft
     const g = clamp01(1 - (p.altitude - 50) / 250);
     const tc = 0.9;
-    const set = (n: GainNode, v: number): void => n.gain.setTargetAtTime(v, t, tc);
+    const set = (n: GainNode, v: number): void => {
+      n.gain.setTargetAtTime(v, t, tc);
+    };
     set(L.urban, clamp01(p.urban) * 0.28 * g);
     set(L.traffic, clamp01(p.urban) * 0.22 * g);
     set(L.wind, (clamp01(p.wind) * 0.5 + clamp01(p.nature) * 0.06 * g) * (0.35 + 0.65 * g) + (g < 1 ? 0.05 * (1 - g) : 0));

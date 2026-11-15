@@ -1,4 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+// bundle the MapLibre worker explicitly so it also works under vite dev pre-bundling
+import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Map as MlMap, Marker, Popup } from 'maplibre-gl';
 import type { PoiCategory } from '../types';
 import { CITIES } from '../data/cities';
@@ -51,7 +53,9 @@ export function createMapPanel(ctx: UiContext) {
   const tabsEl = h('div', { class: 'wt-tabs' });
   const chipsEl = h('div', { class: 'wt-chips' });
   const listEl = h('div', { class: 'mp-list' });
-  const side = h('div', { class: 'mp-side' }, search, tabsEl, chipsEl, listEl);
+  const handle = h('button', { class: 'mp-handle', 'aria-label': '一覧を広げる/縮める', onclick: () => side.classList.toggle('expanded') });
+  const side = h('div', { class: 'mp-side' }, handle, search, tabsEl, chipsEl, listEl);
+  search.addEventListener('focus', () => side.classList.add('expanded'));
   panel.body.append(h('div', { class: 'mp-layout' }, mapWrap, side));
 
   // ---------- helpers
@@ -220,13 +224,14 @@ export function createMapPanel(ctx: UiContext) {
 
   async function buildMap(): Promise<void> {
     ml = await import('maplibre-gl');
+    try { ml.setWorkerUrl(mlWorkerUrl); } catch { /* keep default worker */ }
     const p = player();
     map = new ml.Map({
       container: mapEl,
       style: STYLE_URL,
       center: [p.lon, p.lat],
       zoom: 12,
-      attributionControl: { compact: false, customAttribution: 'OpenFreeMap © OpenMapTiles Data from OpenStreetMap' },
+      attributionControl: { compact: false },
     });
     map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
     const m = map;
@@ -258,11 +263,11 @@ export function createMapPanel(ctx: UiContext) {
       popup = new ml!.Popup({ closeButton: true, offset: 8, maxWidth: '240px' }).setLngLat(e.lngLat).setDOMContent(box).addTo(m);
     });
 
-    m.on('load', async () => {
+    m.once('style.load', async () => {
       const gj = await loadCountriesGeoJSON();
       if (gj) {
         m.addSource('countries', { type: 'geojson', data: gj });
-        m.addLayer({ id: 'visited-fill', type: 'fill', source: 'countries', filter: ['==', 1, 0], paint: { 'fill-color': '#1fd1bd', 'fill-opacity': 0.5 }, layout: { visibility: 'none' } });
+        m.addLayer({ id: 'visited-fill', type: 'fill', source: 'countries', filter: ['==', ['get', 'iso'], '__none__'], paint: { 'fill-color': '#1fd1bd', 'fill-opacity': 0.7 }, layout: { visibility: 'none' } });
         m.addLayer({ id: 'visited-line', type: 'line', source: 'countries', paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.8 }, layout: { visibility: 'none' } });
       }
       m.addSource('visited-cities-src', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

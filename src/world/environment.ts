@@ -1,5 +1,6 @@
 // Time of day, sun, atmosphere and weather visuals.
 import {
+  BoundingSphere,
   Cartesian2,
   Cartesian3,
   Color,
@@ -113,6 +114,18 @@ export class EnvironmentController {
     scene.postProcessStages.add(this.fog);
     scene.postProcessStages.add(this.rain);
     this.clouds = scene.primitives.add(new CloudCollection({ noiseDetail: 16, noiseOffset: Cartesian3.ZERO }));
+    // CesiumJS bug workaround: CloudCollection draw commands have no boundingVolume, which crashes the
+    // back-to-front sort of translucent commands as soon as another translucent object (car glass) is visible.
+    const clouds = this.clouds as any;
+    const origUpdate = clouds.update.bind(clouds);
+    clouds.update = (frameState: any) => {
+      origUpdate(frameState);
+      const center = this.cloudCenter ?? Cartesian3.ZERO;
+      for (const cmd of clouds._colorCommands ?? []) {
+        if (!cmd.boundingVolume) cmd.boundingVolume = new BoundingSphere(Cartesian3.clone(center), 20000);
+        else Cartesian3.clone(center, cmd.boundingVolume.center);
+      }
+    };
   }
 
   setZone(tz: string | null, offsetSeconds: number) {

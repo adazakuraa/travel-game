@@ -88,9 +88,9 @@ export function makeFacadeShader(style: FacadeStyle): CustomShader {
           material.roughness = mix(0.85, 0.12, winMask);
           material.specular = mix(vec3(0.04), vec3(0.5), winMask);
         } else {
-          // keep texture, darker pixels on walls are likely windows
-          float lum = dot(material.diffuse, vec3(0.299, 0.587, 0.114));
-          winMask = isWall ? smoothstep(0.32, 0.12, lum) * edgeAA : 0.0;
+          // photo-textured models: keep the texture, add only a faint city glow at night
+          material.emissive += material.diffuse * 0.12 * u_night;
+          return;
         }
         // night: lit windows
         float lit = step(0.45, h21(gi + rnd * 17.0)) * winMask;
@@ -145,8 +145,9 @@ export class BuildingManager {
           preferLeaves: false,
           enableCollision: false,
         });
+        // reality meshes (Helsinki) are used as-is; everything else gets the facade/night shader
         const shader = makeFacadeShader(d.style);
-        tileset.customShader = shader;
+        if (city?.buildings !== 'helsinki') tileset.customShader = shader;
         if (this.loadingKey !== key) {
           tileset.destroy();
           return;

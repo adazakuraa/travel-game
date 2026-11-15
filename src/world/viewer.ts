@@ -73,9 +73,9 @@ export function createViewer(container: HTMLElement, terrain: TerrainProvider): 
   scene.fog.enabled = true;
   scene.fog.density = 1.2e-4;
   scene.fog.minimumBrightness = 0.03;
-  scene.skyAtmosphere.show = true;
-  scene.sun.show = true;
-  scene.moon.show = true;
+  if (scene.skyAtmosphere) scene.skyAtmosphere.show = true;
+  if (scene.sun) scene.sun.show = true;
+  if (scene.moon) scene.moon.show = true;
   scene.screenSpaceCameraController.enableInputs = false;
   scene.camera.frustum.near = 0.1;
   viewer.shadowMap.softShadows = true;

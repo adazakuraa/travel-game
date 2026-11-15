@@ -1,5 +1,8 @@
 // Cesium must know where its static assets (workers, etc.) are served from.
-(window as any).CESIUM_BASE_URL = new URL('./cesium/', document.baseURI).href;
+// In dev, Vite serves node_modules directly; in production the assets are copied to ./cesium/.
+(window as any).CESIUM_BASE_URL = import.meta.env.DEV
+  ? '/node_modules/cesium/Build/Cesium/'
+  : new URL('./cesium/', document.baseURI).href;
 
 import './game/controls.css';
 import { createAudio } from './audio';

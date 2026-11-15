@@ -64,7 +64,7 @@ export function initUI(opts: { root: HTMLElement; game: GameAPI; audio: AudioAPI
   const hud = createHud(root, ctx);
   const title = createTitleScreen(root, ctx);
 
-  game.on('status', (e) => toast(e.level === 'error' ? `⚠ ${e.message}` : e.message));
+  // NOTE: 'status' is toasted by main.ts via the returned showToast (avoid duplicates)
   game.on('loading', (e) => setLoading(e.active, e.label));
   game.on('poiNearby', ({ poi }) =>
     toast(`📍 ${poi.name} に到着 ${CATEGORY_ICONS[poi.category] ?? ''}`, { action: { label: '詳しく', onClick: () => card.open(poiToSubject(poi)) } }),
