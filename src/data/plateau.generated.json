@@ -1,0 +1,415 @@
+{
+ "tokyo": [
+  {
+   "ward": "13101",
+   "name": "千代田区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/28/07d0a1-b6be-46ef-bd87-4f0683b5ef6e/13101_chiyoda-ku_pref_2025_citygml_1_op_bldg_3dtiles_13101_chiyoda-ku_lod2/tileset.json",
+   "region": [
+    2.4387515,
+    0.6225417,
+    2.4396695,
+    0.6231729,
+    35.345137,
+    252.1750559
+   ]
+  },
+  {
+   "ward": "13102",
+   "name": "中央区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/09/83a3f6-6605-477c-84dc-a973008b5a27/13102_chuo-ku_pref_2025_citygml_1_op_bldg_3dtiles_13102_chuo-ku_lod2/tileset.json",
+   "region": [
+    2.4392519,
+    0.6221448,
+    2.4398303,
+    0.6230204,
+    24.9142325,
+    278.1889759
+   ]
+  },
+  {
+   "ward": "13103",
+   "name": "港区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/c7/ffcc73-1d33-434b-a49a-aa0289160814/13103_minato-ku_pref_2025_citygml_1_op_bldg_3dtiles_13103_minato-ku_lod3/tileset.json",
+   "region": [
+    2.4383794,
+    0.6216659,
+    2.4396638,
+    0.6227767,
+    37.6979164,
+    387.1085426
+   ]
+  },
+  {
+   "ward": "13104",
+   "name": "新宿区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/00/bed0bd-f882-4cde-b942-21d0f8d2ddc2/13104_shinjuku-ku_pref_2025_citygml_1_op_bldg_3dtiles_13104_shinjuku-ku_lod2/tileset.json",
+   "region": [
+    2.4377588,
+    0.6226206,
+    2.4390006,
+    0.6236014,
+    53.0008068,
+    332.2867915
+   ]
+  },
+  {
+   "ward": "13105",
+   "name": "文京区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/c6/c5c89a-859d-4dce-8e25-04e02a39b270/13105_bunkyo-ku_pref_2025_citygml_1_op_bldg_3dtiles_13105_bunkyo-ku_lod2/tileset.json",
+   "region": [
+    2.4385269,
+    0.6230751,
+    2.4394892,
+    0.6237088,
+    38.0797768,
+    190.8393705
+   ]
+  },
+  {
+   "ward": "13106",
+   "name": "台東区 LOD4",
+   "lod": 4,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/8b/17cb7e-3e1f-4738-81ce-c944ca73a161/13106_taito-ku_city_2025_citygml_1_op_bldg_3dtiles_lod4/tileset.json",
+   "region": [
+    2.4393143,
+    0.6229996,
+    2.4401241,
+    0.6236339,
+    34.9918191,
+    178.9035406
+   ]
+  },
+  {
+   "ward": "13107",
+   "name": "墨田区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/f2/aaaf35-d94c-4c15-affd-d9f652cd16c1/13107_sumida-ku_pref_2025_citygml_1_op_bldg_3dtiles_13107_sumida-ku_lod3/tileset.json",
+   "region": [
+    2.4397909,
+    0.6228517,
+    2.4406616,
+    0.6238233,
+    33.1713612,
+    671.8657837
+   ]
+  },
+  {
+   "ward": "13108",
+   "name": "江東区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/80/e01efb-831d-4752-a10e-63b407ee2201/13108_koto-ku_pref_2025_citygml_1_op_bldg_3dtiles_13108_koto-ku_lod2/tileset.json",
+   "region": [
+    2.4394497,
+    0.6209654,
+    2.4408302,
+    0.6232147,
+    35.7922596,
+    222.7824937
+   ]
+  },
+  {
+   "ward": "13113",
+   "name": "渋谷区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/16/b016d3-42ef-4428-ad99-d229310b39fd/13113_shibuya-ku_pref_2025_citygml_1_op_bldg_3dtiles_13113_shibuya-ku_lod2/tileset.json",
+   "region": [
+    2.4375513,
+    0.6220571,
+    2.4386398,
+    0.6229449,
+    48.9897329,
+    316.8304096
+   ]
+  },
+  {
+   "ward": "13116",
+   "name": "豊島区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/a6/85dfbe-994a-4da4-90fc-ec7f4661d469/13116_toshima-ku_pref_2025_citygml_1_op_bldg_3dtiles_13116_toshima-ku_lod2/tileset.json",
+   "region": [
+    2.4378353,
+    0.6232995,
+    2.4391435,
+    0.6238842,
+    49.3221931,
+    323.7584424
+   ]
+  }
+ ],
+ "kyoto": [
+  {
+   "ward": "26101",
+   "name": "北区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/7a/918715-89fb-4f45-a48a-a77ee6288577/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26101_kita-ku_lod2/tileset.json",
+   "region": [
+    2.368607,
+    0.6112538,
+    2.3696695,
+    0.6123739,
+    88.5455912,
+    258.5366679
+   ]
+  },
+  {
+   "ward": "26102",
+   "name": "上京区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/71/0af6ab-875e-4c69-bb5e-9e06096e6fcb/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26102_kamigyo-ku_lod2/tileset.json",
+   "region": [
+    2.3689862,
+    0.6111257,
+    2.3696498,
+    0.6115492,
+    79.871585,
+    136.5129323
+   ]
+  },
+  {
+   "ward": "26103",
+   "name": "左京区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/96/d17b9d-5527-4610-90c8-9e9c44d500c3/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26103_sakyo-ku_lod2/tileset.json",
+   "region": [
+    2.3693604,
+    0.6109842,
+    2.3705788,
+    0.6125051,
+    82.3661794,
+    295.1402571
+   ]
+  },
+  {
+   "ward": "26104",
+   "name": "中京区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/3b/cc2d98-1c15-46ee-b026-f7dc851d884a/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26104_nakagyo-ku_lod3/tileset.json",
+   "region": [
+    2.3688285,
+    0.6108011,
+    2.3696581,
+    0.6112603,
+    69.4976024,
+    147.8118455
+   ]
+  },
+  {
+   "ward": "26105",
+   "name": "東山区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/dd/3e0851-94fb-4fed-8e44-289d0e3fb41f/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26105_higashiyama-ku_lod3/tileset.json",
+   "region": [
+    2.3695568,
+    0.6103397,
+    2.3699975,
+    0.611055,
+    72.852622,
+    151.4942389
+   ]
+  },
+  {
+   "ward": "26106",
+   "name": "下京区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/d3/4c620c-1c8b-44fa-9168-b50ed86f27f1/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26106_shimogyo-ku_lod3/tileset.json",
+   "region": [
+    2.3688865,
+    0.6105435,
+    2.3696533,
+    0.610944,
+    60.7195965,
+    195.7984985
+   ]
+  },
+  {
+   "ward": "26108",
+   "name": "右京区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/64/cf6354-e5ff-4ee4-84d6-1751734da17c/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26108_ukyo-ku_lod2/tileset.json",
+   "region": [
+    2.3677532,
+    0.6105454,
+    2.368988,
+    0.6117208,
+    36.3614486,
+    189.9654665
+   ]
+  },
+  {
+   "ward": "26109",
+   "name": "伏見区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/6c/10f912-836b-483d-a6b2-881e298d7006/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26109_fushimi-ku_lod2/tileset.json",
+   "region": [
+    2.3684778,
+    0.6088149,
+    2.3705877,
+    0.6104615,
+    48.1950525,
+    155.1518602
+   ]
+  }
+ ],
+ "osaka": [
+  {
+   "ward": "27103",
+   "name": "福島区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/72/90e183-bf4b-463e-b8d9-11936f32d256/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27103_fukushima-ku_lod2/tileset.json",
+   "region": [
+    2.3642717,
+    0.6052976,
+    2.3647595,
+    0.6057014,
+    34.3819179,
+    221.9965473
+   ]
+  },
+  {
+   "ward": "27104",
+   "name": "此花区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/1b/2acef6-47d7-46b1-a391-050836fe0a96/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27104_konohana-ku_lod2/tileset.json",
+   "region": [
+    2.3627558,
+    0.6046417,
+    2.3644267,
+    0.6055628,
+    35.5057948,
+    189.961702
+   ]
+  },
+  {
+   "ward": "27106",
+   "name": "西区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/32/6117a6-a930-4fe1-bce2-7cbdddc6c52f/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27106_nishi-ku_lod2/tileset.json",
+   "region": [
+    2.3642576,
+    0.6050572,
+    2.3648816,
+    0.605498,
+    35.8437348,
+    228.9712887
+   ]
+  },
+  {
+   "ward": "27109",
+   "name": "天王寺区 LOD1",
+   "lod": 1,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/84/435ce6-00dd-47fe-87db-19958af5a6ac/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27109_tennoji-ku_lod1/tileset.json",
+   "region": [
+    2.3650375,
+    0.6046719,
+    2.3655045,
+    0.605212,
+    40.6151784,
+    211.7035765
+   ]
+  },
+  {
+   "ward": "27111",
+   "name": "浪速区 LOD2",
+   "lod": 2,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/32/d6ef51-5aac-4519-a690-aea78e8bd039/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27111_naniwa-ku_lod2/tileset.json",
+   "region": [
+    2.3645916,
+    0.6047255,
+    2.3651091,
+    0.6051012,
+    36.4449652,
+    200.3915354
+   ]
+  },
+  {
+   "ward": "27127",
+   "name": "北区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/cf/c419c0-bee1-4810-b9ae-529bafd07124/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27127_kita-ku_lod3/tileset.json",
+   "region": [
+    2.364521,
+    0.6053767,
+    2.365308,
+    0.6059786,
+    35.7980956,
+    247.1679257
+   ]
+  },
+  {
+   "ward": "27128",
+   "name": "中央区 LOD3",
+   "lod": 3,
+   "year": 2025,
+   "url": "https://assets.cms.plateau.reearth.io/assets/8b/99ba46-8479-4392-aecb-bf5e98e23987/27100_osaka-shi_city_2025_citygml_1_op_bldg_3dtiles_27128_chuo-ku_lod3/tileset.json",
+   "region": [
+    2.3648646,
+    0.6049744,
+    2.3655499,
+    0.6055425,
+    39.5399143,
+    264.4242471
+   ]
+  }
+ ],
+ "yokohama": [
+  {
+   "ward": "14103",
+   "name": "西区 LOD3",
+   "lod": 3,
+   "year": 2024,
+   "url": "https://assets.cms.plateau.reearth.io/assets/57/4b4e13-9239-4570-b4c3-18f695ef7035/14100_yokohama-shi_city_2024_citygml_2_op_bldg_3dtiles_14103_nishi-ku_lod3/tileset.json",
+   "region": [
+    2.4365336,
+    0.6185765,
+    2.4371524,
+    0.6191042,
+    35.3653718,
+    292.7819604
+   ]
+  },
+  {
+   "ward": "14104",
+   "name": "中区 LOD3",
+   "lod": 3,
+   "year": 2024,
+   "url": "https://assets.cms.plateau.reearth.io/assets/98/34e4f3-a849-4f12-8bd2-50826a53fa62/14100_yokohama-shi_city_2024_citygml_2_op_bldg_3dtiles_14104_naka-ku_lod3/tileset.json",
+   "region": [
+    2.4368586,
+    0.6177913,
+    2.438054,
+    0.6188499,
+    30.8400137,
+    335.8570501
+   ]
+  }
+ ]
+}
