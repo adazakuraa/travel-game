@@ -6,16 +6,13 @@ const cesiumSource = 'node_modules/cesium/Build/Cesium';
 export default defineConfig({
   // relative base so the build works on GitHub Pages sub-paths and any static host
   base: './',
-  define: {
-    CESIUM_BASE_URL: JSON.stringify('./cesium/'),
-  },
   plugins: [
     viteStaticCopy({
       targets: [
-        { src: `${cesiumSource}/Workers`, dest: 'cesium' },
-        { src: `${cesiumSource}/ThirdParty`, dest: 'cesium' },
-        { src: `${cesiumSource}/Assets`, dest: 'cesium' },
-        { src: `${cesiumSource}/Widgets`, dest: 'cesium' },
+        { src: `${cesiumSource}/Workers`, dest: 'cesium', rename: { stripBase: 4 } },
+        { src: `${cesiumSource}/ThirdParty`, dest: 'cesium', rename: { stripBase: 4 } },
+        { src: `${cesiumSource}/Assets`, dest: 'cesium', rename: { stripBase: 4 } },
+        { src: `${cesiumSource}/Widgets`, dest: 'cesium', rename: { stripBase: 4 } },
       ],
     }),
   ],

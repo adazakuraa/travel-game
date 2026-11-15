@@ -300,7 +300,7 @@
 /* ---------- title screen ---------- */
 .title-screen {
   position: absolute; inset: 0; z-index: 60; pointer-events: auto; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
-  background: radial-gradient(ellipse at 50% 0%, rgba(31, 209, 189, 0.22), transparent 60%), linear-gradient(180deg, rgba(6, 10, 22, 0.82), rgba(6, 10, 22, 0.94));
+  background: radial-gradient(ellipse at 50% 0%, rgba(31, 209, 189, 0.22), transparent 60%), linear-gradient(180deg, rgba(6, 10, 22, 0.9), rgba(6, 10, 22, 0.97));
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: opacity 0.5s, transform 0.5s;
   -webkit-user-select: none; user-select: none;
 }

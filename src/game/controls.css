@@ -35,3 +35,6 @@ body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color
 .tc-pedals .tc-gas { height: 118px; background: rgba(16,120,90,0.5); }
 .tc-pedals .tc-brake { background: rgba(150,40,40,0.45); }
 .tc-pedals button.on { transform: scale(0.95); filter: brightness(1.4); }
+
+/* hide driving controls while the title screen is open */
+#ui:has(.title-screen:not(.gone)) .touch-controls { visibility: hidden; }

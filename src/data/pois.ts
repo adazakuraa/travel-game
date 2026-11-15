@@ -18,9 +18,17 @@ export const CATEGORY_ICONS: Record<PoiCategory, string> = {
   museum: "🖼️",
   history: "🏰",
   landmark: "🗼",
-  religion: "⛩️",
+  religion: "🙏",
   shopping: "🛍️",
 };
+
+const JAPAN_CITIES = new Set(['tokyo', 'kyoto', 'osaka', 'yokohama', 'fuji']);
+
+/** icon for a POI: shrines/temples in Japan, churches elsewhere */
+export function poiIcon(p: Poi): string {
+  if (p.category === 'religion') return JAPAN_CITIES.has(p.cityId) ? '⛩️' : '⛪';
+  return CATEGORY_ICONS[p.category];
+}
 
 export const POIS: Poi[] = [
   // ───────────── 東京 ─────────────

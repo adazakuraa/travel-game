@@ -1,4 +1,4 @@
-import { CATEGORY_ICONS, CATEGORY_LABELS } from '../data/pois';
+import { CATEGORY_LABELS, poiIcon } from '../data/pois';
 import type { Poi } from '../types';
 import { fetchSummary } from '../services/wiki';
 import { haversine } from '../services/geo';
@@ -15,7 +15,7 @@ export function poiToSubject(poi: Poi): CardSubject {
     name: poi.name,
     nameLocal: poi.nameLocal,
     categoryLabel: CATEGORY_LABELS[poi.category] ?? poi.category,
-    icon: CATEGORY_ICONS[poi.category] ?? '📍',
+    icon: poiIcon(poi),
     lat: poi.lat,
     lon: poi.lon,
     heading: poi.heading,
