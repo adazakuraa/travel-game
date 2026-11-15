@@ -262,7 +262,7 @@ export function makeOpenTerrain(): TerrainProvider {
     tilingScheme: tiling,
     credit: new Credit(
       '標高: 国土地理院 / AWS Terrain Tiles (Mapzen: SRTM, GMTED, ETOPO1 ほか) / EGM96',
-      true,
+      false,
     ),
     callback: (x: number, y: number, level: number) => {
       if (inflight > MAX_INFLIGHT) return undefined as any; // Cesium will retry later
@@ -313,7 +313,7 @@ export function makeOpenTerrain(): TerrainProvider {
 export async function makeSwissTerrain(): Promise<TerrainProvider> {
   const p = await CesiumTerrainProvider.fromUrl('https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/', {
     requestVertexNormals: true,
-    credit: new Credit('地形: © swisstopo', true),
+    credit: new Credit('地形: © swisstopo', false),
   });
   return p;
 }

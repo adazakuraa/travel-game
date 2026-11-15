@@ -74,9 +74,13 @@ export function makeFacadeShader(style: FacadeStyle): CustomShader {
         vec2 g = vec2(s / u_win, h / u_floor);
         vec2 gi = floor(g);
         vec2 gf = fract(g);
-        float winMask = isWall ? step(0.2, gf.x) * step(gf.x, 0.8) * step(0.25, gf.y) * step(gf.y, 0.85) : 0.0;
-        float edgeAA = clamp(1.5 - length(fwidth(g)) * 3.0, 0.0, 1.0); // fade windows out when too small on screen
-        winMask *= edgeAA;
+        // anti-aliased window rectangles; when a window gets smaller than a few pixels the pattern
+        // fades to its average coverage (≈ 0.36) instead of shimmering
+        vec2 fw = max(fwidth(g), vec2(1e-4));
+        float mx = smoothstep(0.2 - fw.x, 0.2 + fw.x, gf.x) * (1.0 - smoothstep(0.8 - fw.x, 0.8 + fw.x, gf.x));
+        float my = smoothstep(0.25 - fw.y, 0.25 + fw.y, gf.y) * (1.0 - smoothstep(0.85 - fw.y, 0.85 + fw.y, gf.y));
+        float detail = clamp(1.6 - max(fw.x, fw.y) * 4.0, 0.0, 1.0);
+        float winMask = isWall ? mix(0.36, mx * my, detail) : 0.0;
 
         if (u_proc > 0.5) {
           vec3 wall = u_wall * (1.0 - u_var + 2.0 * u_var * rnd);
@@ -131,7 +135,8 @@ export class BuildingManager {
 
   /** load tilesets for a city (unloading others). Each call starts a new generation; stale loads are discarded. */
   async showCity(city: CityDef | null): Promise<void> {
-    const key = city ? city.buildings + ':' + city.id : 'none';
+    // nation-wide datasets (swisstopo, 3DBAG) are shared between cities: only PLATEAU is per city
+    const key = city ? (city.buildings === 'plateau' ? 'plateau:' + city.id : city.buildings) : 'none';
     if (this.loadingKey === key) return; // already loading this one
     if (this.activeKey === key) {
       // already shown: just cancel any other city that was still loading

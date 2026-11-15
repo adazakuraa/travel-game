@@ -58,6 +58,14 @@ const haversine = (a: LatLon, b: LatLon) => {
   return 2 * R * Math.asin(Math.sqrt(s));
 };
 
+const CITY_IMAGERY_CREDIT: Record<string, string> = {
+  JP: '航空写真・標高: 国土地理院',
+  CH: '航空写真・地形: © swisstopo',
+  NL: 'Luchtfoto: PDOK (CC BY 4.0)',
+  FR: 'Orthophotos: IGN (Licence Ouverte)',
+  US: 'Imagery: USGS',
+};
+
 const CITY_WATER: Record<string, number> = { helsinki: 0.6, amsterdam: 0.5, yokohama: 0.5, newyork: 0.3, zurich: 0.3, paris: 0.2 };
 
 export class Game implements GameAPI {
@@ -94,7 +102,7 @@ export class Game implements GameAPI {
   private audioT = 0;
   private seenPoi = new Set<string>();
   private lastCityId: string | null = null;
-  private scratch = { m3: new Matrix3(), m4: new Matrix4() };
+  private scratch = { m3: new Matrix3(), m4: new Matrix4(), c3: new Cartesian3() };
 
   constructor(private container: HTMLElement, private overlay: HTMLElement, private audio: AudioAPI) {}
 
@@ -279,12 +287,16 @@ export class Game implements GameAPI {
   private updateCityCredit(city: CityDef | null) {
     const cd = this.viewer.creditDisplay;
     if (!this.osmCredit) {
-      this.osmCredit = new Credit('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors', true);
+      this.osmCredit = new Credit(
+        '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · Sentinel-2 cloudless by EOX (CC BY-NC-SA 4.0)',
+        true,
+      );
       cd.addStaticCredit(this.osmCredit);
     }
     if (this.cityCredit) cd.removeStaticCredit(this.cityCredit);
     this.cityCredit = null;
-    const text = city ? BUILDING_CREDITS[city.buildings] : undefined;
+    const parts = city ? [CITY_IMAGERY_CREDIT[city.country], BUILDING_CREDITS[city.buildings]].filter(Boolean) : [];
+    const text = parts.join(' · ');
     if (text) {
       this.cityCredit = new Credit(text, true);
       cd.addStaticCredit(this.cityCredit);
@@ -685,26 +697,27 @@ export class Game implements GameAPI {
     void this.loadCellsAround(lat, lon, 1);
   }
 
-  /** ENU basis at a point + pose rotation → model matrix (model axes: +X left, +Y up, +Z forward) */
+  /** ENU basis at a point + pose rotation → model matrix (model axes: +X left, +Y up, +Z forward).
+   *  Allocation-free: called several times per frame. */
   private poseMatrix(lat: number, lon: number, p: Pose, result: Matrix4): Matrix4 {
-    const enu = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(lon, lat, p.z), undefined, result);
-    const h = p.heading * D2R;
-    const pt = p.pitch * D2R;
-    const r = p.roll * D2R;
-    // forward / up / left in ENU
-    let f = new Cartesian3(Math.sin(h), Math.cos(h), 0);
-    let u = new Cartesian3(0, 0, 1);
-    // pitch
-    const f2 = Cartesian3.add(Cartesian3.multiplyByScalar(f, Math.cos(pt), new Cartesian3()), Cartesian3.multiplyByScalar(u, Math.sin(pt), new Cartesian3()), new Cartesian3());
-    const u2 = Cartesian3.subtract(Cartesian3.multiplyByScalar(u, Math.cos(pt), new Cartesian3()), Cartesian3.multiplyByScalar(f, Math.sin(pt), new Cartesian3()), new Cartesian3());
-    f = f2;
-    u = u2;
-    // roll (right side down): rotate up towards right
-    const right = Cartesian3.cross(f, u, new Cartesian3());
-    const u3 = Cartesian3.add(Cartesian3.multiplyByScalar(u, Math.cos(r), new Cartesian3()), Cartesian3.multiplyByScalar(right, Math.sin(r), new Cartesian3()), new Cartesian3());
-    const left = Cartesian3.cross(u3, f, new Cartesian3());
-    const rot = Matrix3.fromColumnMajorArray([left.x, left.y, left.z, u3.x, u3.y, u3.z, f.x, f.y, f.z], this.scratch.m3);
-    return Matrix4.multiplyByMatrix3(enu, rot, result);
+    const enu = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(lon, lat, p.z, undefined, this.scratch.c3), undefined, result);
+    const ch = Math.cos(p.heading * D2R), sh = Math.sin(p.heading * D2R);
+    const cp = Math.cos(p.pitch * D2R), sp = Math.sin(p.pitch * D2R);
+    const cr = Math.cos(p.roll * D2R), sr = Math.sin(p.roll * D2R);
+    // forward/up after pitch (in ENU): f = (sh*cp, ch*cp, sp), u = (-sh*sp, -ch*sp, cp)
+    const fx = sh * cp, fy = ch * cp, fz = sp;
+    const ux0 = -sh * sp, uy0 = -ch * sp, uz0 = cp;
+    // right = f × u
+    const rx = fy * uz0 - fz * uy0, ry = fz * ux0 - fx * uz0, rz = fx * uy0 - fy * ux0;
+    // roll: rotate up towards right
+    const ux = ux0 * cr + rx * sr, uy = uy0 * cr + ry * sr, uz = uz0 * cr + rz * sr;
+    // left = u × f
+    const lx = uy * fz - uz * fy, ly = uz * fx - ux * fz, lz = ux * fy - uy * fx;
+    const m = this.scratch.m3 as unknown as number[]; // column-major storage
+    m[0] = lx; m[1] = ly; m[2] = lz;
+    m[3] = ux; m[4] = uy; m[5] = uz;
+    m[6] = fx; m[7] = fy; m[8] = fz;
+    return Matrix4.multiplyByMatrix3(enu, this.scratch.m3, result);
   }
 
   private updateModels(lat: number, lon: number, p: Pose) {

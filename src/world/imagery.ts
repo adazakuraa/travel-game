@@ -79,7 +79,7 @@ export function addImagery(viewer: Viewer): void {
       maximumLevel: def.maximumLevel,
       minimumLevel: def.minimumLevel ?? 0,
       rectangle: def.rect ? Rectangle.fromDegrees(...def.rect) : undefined,
-      credit: new Credit(def.credit, true),
+      credit: new Credit(def.credit, false), // full list in the attribution pop-up; the city credit is on screen
       enablePickFeatures: false,
     });
     const layer = new ImageryLayer(provider, {
