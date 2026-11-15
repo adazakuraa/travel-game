@@ -106,6 +106,8 @@ type Managed = { key: string; tileset: Cesium3DTileset; shader: CustomShader };
 export class BuildingManager {
   private active: Managed[] = [];
   private loadingKey: string | null = null;
+  private activeKey: string | null = null;
+  private generation = 0;
   private sse = 16;
   private shadows = false;
 
@@ -127,43 +129,58 @@ export class BuildingManager {
     }
   }
 
-  /** load tilesets for a city (unloading others). */
+  /** load tilesets for a city (unloading others). Each call starts a new generation; stale loads are discarded. */
   async showCity(city: CityDef | null): Promise<void> {
     const key = city ? city.buildings + ':' + city.id : 'none';
-    if (this.loadingKey === key || this.active.some((m) => m.key === key)) return;
+    if (this.loadingKey === key) return; // already loading this one
+    if (this.activeKey === key) {
+      // already shown: just cancel any other city that was still loading
+      this.generation++;
+      this.loadingKey = null;
+      return;
+    }
+    const gen = ++this.generation;
     this.loadingKey = key;
     const defs = city ? this.tilesetDefs(city) : [];
+    const mobile = matchMedia('(pointer: coarse)').matches;
+    // one memory budget per city, shared by its tilesets (Tokyo has 10)
+    const budget = (mobile ? 320 : 1024) * 1024 * 1024;
+    const perSet = Math.floor(budget / Math.max(1, defs.length));
     const next: Managed[] = [];
+    const discard = () => next.forEach((m) => this.viewer.scene.primitives.remove(m.tileset)); // remove() destroys
     for (const d of defs) {
       try {
         const tileset = await Cesium3DTileset.fromUrl(d.url, {
           maximumScreenSpaceError: this.sse,
-          cacheBytes: matchMedia('(pointer: coarse)').matches ? 256 * 1024 * 1024 : 768 * 1024 * 1024,
+          cacheBytes: perSet,
+          maximumCacheOverflowBytes: Math.floor(perSet / 2),
           shadows: this.shadows ? ShadowMode.ENABLED : ShadowMode.DISABLED,
           dynamicScreenSpaceError: true,
           foveatedScreenSpaceError: true,
           preferLeaves: false,
           enableCollision: false,
         });
+        if (gen !== this.generation) {
+          tileset.destroy();
+          discard();
+          return;
+        }
         // reality meshes (Helsinki) are used as-is; everything else gets the facade/night shader
         const shader = makeFacadeShader(d.style);
         if (city?.buildings !== 'helsinki') tileset.customShader = shader;
-        if (this.loadingKey !== key) {
-          tileset.destroy();
-          return;
-        }
         this.viewer.scene.primitives.add(tileset);
         next.push({ key, tileset, shader });
       } catch (e) {
         console.warn('tileset failed', d.url, e);
       }
     }
-    if (this.loadingKey !== key) {
-      next.forEach((m) => this.viewer.scene.primitives.remove(m.tileset));
+    if (gen !== this.generation) {
+      discard();
       return;
     }
     for (const m of this.active) this.viewer.scene.primitives.remove(m.tileset);
     this.active = next;
+    this.activeKey = key;
     this.loadingKey = null;
   }
 

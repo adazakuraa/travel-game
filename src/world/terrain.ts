@@ -82,6 +82,42 @@ function getCtx() {
   return ctx!;
 }
 
+class TransientError extends Error {}
+
+let bitmapOptionsOk = true;
+let warned = false;
+/** decode a PNG without colour management / premultiplication (raw RGB values encode heights) */
+async function drawBlob(c: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D, blob: Blob) {
+  if (typeof createImageBitmap !== 'undefined') {
+    try {
+      const bmp = bitmapOptionsOk
+        ? await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
+        : await createImageBitmap(blob);
+      c.drawImage(bmp, 0, 0, TILE_PX, TILE_PX);
+      bmp.close?.();
+      return;
+    } catch (e) {
+      if (bitmapOptionsOk) {
+        bitmapOptionsOk = false; // older Safari rejects the options – retry without them
+        if (!warned) {
+          warned = true;
+          console.warn('createImageBitmap options unsupported, falling back', e);
+        }
+        return drawBlob(c, blob);
+      }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    c.drawImage(img, 0, 0, TILE_PX, TILE_PX);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function loadTile(src: Source, z: number, x: number, y: number): Promise<Decoded> {
   const n = 1 << z;
   x = ((x % n) + n) % n;
@@ -97,26 +133,30 @@ async function loadTile(src: Source, z: number, x: number, y: number): Promise<D
   p = (async () => {
     inflight++;
     try {
-      const res = await fetch(src.url(z, x, y), { mode: 'cors' });
-      if (!res.ok) return null;
+      let res: Response;
+      try {
+        res = await fetch(src.url(z, x, y), { mode: 'cors' });
+      } catch (e) {
+        throw new TransientError(String(e));
+      }
+      if (res.status === 404 || res.status === 204) return null; // genuinely no data here
+      if (!res.ok) throw new TransientError('HTTP ' + res.status);
       const blob = await res.blob();
-      const bmp = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
       const c = getCtx();
       c.clearRect(0, 0, TILE_PX, TILE_PX);
-      c.drawImage(bmp, 0, 0, TILE_PX, TILE_PX);
-      bmp.close?.();
+      await drawBlob(c, blob);
       const data = c.getImageData(0, 0, TILE_PX, TILE_PX).data;
       const out = new Float32Array(TILE_PX * TILE_PX);
       for (let i = 0, j = 0; i < out.length; i++, j += 4) {
         out[i] = src.decode(data[j], data[j + 1], data[j + 2], data[j + 3]);
       }
       return out;
-    } catch {
-      return null;
     } finally {
       inflight--;
     }
   })();
+  // transient failures (network, 5xx) must not be cached: Cesium will request the tile again
+  p.catch(() => cache.delete(key));
   cache.set(key, p);
   if (cache.size > MAX_CACHE) {
     const first = cache.keys().next().value;
@@ -222,7 +262,7 @@ export function makeOpenTerrain(): TerrainProvider {
     tilingScheme: tiling,
     credit: new Credit(
       '標高: 国土地理院 / AWS Terrain Tiles (Mapzen: SRTM, GMTED, ETOPO1 ほか) / EGM96',
-      false,
+      true,
     ),
     callback: (x: number, y: number, level: number) => {
       if (inflight > MAX_INFLIGHT) return undefined as any; // Cesium will retry later
@@ -246,8 +286,12 @@ export function makeOpenTerrain(): TerrainProvider {
             // DEM5A has gaps (mountains / sea) – fill from DEM10B
             const alt = await sampleGrid(GSI_DEM10, 14, west, south, east, north);
             if (res && alt) {
-              for (let k = 0; k < res.heights.length; k++)
+              let missing = 0;
+              for (let k = 0; k < res.heights.length; k++) {
                 if (!Number.isFinite(res.heights[k])) res.heights[k] = alt.heights[k];
+                if (!Number.isFinite(res.heights[k])) missing++;
+              }
+              res.missing = missing;
             } else res = alt ?? res;
           }
           if (res && res.missing < SIZE * SIZE) return finish(res.heights, west, south, east, north);
@@ -259,6 +303,9 @@ export function makeOpenTerrain(): TerrainProvider {
       })();
     },
   });
+  // Sources stop at z15 (≈ level 16 here). Deeper levels add no detail, only main-thread work:
+  // report them as unavailable so Cesium upsamples the parent tile on its worker instead.
+  (provider as any).getTileDataAvailable = (_x: number, _y: number, level: number) => (level <= 17 ? undefined : false);
   return provider;
 }
 
@@ -266,7 +313,7 @@ export function makeOpenTerrain(): TerrainProvider {
 export async function makeSwissTerrain(): Promise<TerrainProvider> {
   const p = await CesiumTerrainProvider.fromUrl('https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/', {
     requestVertexNormals: true,
-    credit: new Credit('地形: © swisstopo', false),
+    credit: new Credit('地形: © swisstopo', true),
   });
   return p;
 }

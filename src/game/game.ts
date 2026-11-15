@@ -3,6 +3,7 @@ import {
   Axis,
   Cartesian3,
   Cartographic,
+  Credit,
   EllipsoidTerrainProvider,
   Math as CMath,
   Matrix3,
@@ -11,6 +12,8 @@ import {
   PerspectiveFrustum,
   ShadowMode,
   Transforms,
+  sampleTerrain,
+  sampleTerrainMostDetailed,
   type TerrainProvider,
   type Viewer,
 } from 'cesium';
@@ -30,10 +33,10 @@ import type {
   ViewMode,
   WeatherKind,
 } from '../types';
-import { BuildingManager, FACADES } from '../world/buildings';
+import { BUILDING_CREDITS, BuildingManager, FACADES } from '../world/buildings';
 import { EnvironmentController } from '../world/environment';
 import { addImagery } from '../world/imagery';
-import { cellKey, CELL, findRunways, loadCell } from '../world/osm';
+import { cellKey, CELL, findRunways, loadCell, setWantedCells } from '../world/osm';
 import { OsmBuildingLayer } from '../world/osmBuildings';
 import { makeOpenTerrain, makeSwissTerrain } from '../world/terrain';
 import { applyQuality, createViewer, detectQuality, PRESETS } from '../world/viewer';
@@ -88,6 +91,7 @@ export class Game implements GameAPI {
   private lastT = performance.now();
   private timers = { pos: 0, cells: 0, city: 0, poi: 0, ambient: 0, night: 0, weather: 0, fps: 0, env: 0 };
   private frames = 0;
+  private audioT = 0;
   private seenPoi = new Set<string>();
   private lastCityId: string | null = null;
   private scratch = { m3: new Matrix3(), m4: new Matrix4() };
@@ -195,6 +199,8 @@ export class Game implements GameAPI {
       this.meshCache.clear();
       this.meshPending.clear();
       this.osmLayer.clear();
+      // old local coordinates are meaningless relative to the new origin
+      for (const v of [this.car.pose, this.walker.pose, this.plane.pose]) v.x = v.y = 0;
       // look down at the destination while terrain and data stream in
       this.viewer.camera.setView({
         destination: Cartesian3.fromDegrees(t.lon, t.lat - 0.0025, 450),
@@ -204,7 +210,6 @@ export class Game implements GameAPI {
       const cellsP = this.loadCellsAround(t.lat, t.lon, 1);
       const ground = await this.waitGround(t.lat, t.lon, 9000);
       await Promise.race([cellsP, sleep(7000)]);
-      this.mode = mode;
       const heading = t.heading ?? 0;
       await this.placeMode(mode, 0, 0, ground ?? 0, heading, true);
       this.ready = true;
@@ -243,10 +248,11 @@ export class Game implements GameAPI {
       if (want === 'swiss') {
         try {
           this.swissTerrain ??= await makeSwissTerrain();
-          this.viewer.terrainProvider = this.swissTerrain;
+          if (this.city === city) this.viewer.terrainProvider = this.swissTerrain;
         } catch {
-          this.viewer.terrainProvider = this.openTerrain;
+          if (this.city === city) this.viewer.terrainProvider = this.openTerrain;
         }
+        if (this.city !== city) return; // another city was entered while loading
       } else if (want === 'flat') this.viewer.terrainProvider = new EllipsoidTerrainProvider();
       else this.viewer.terrainProvider = this.openTerrain;
       this.terrainKind = want;
@@ -257,6 +263,7 @@ export class Game implements GameAPI {
     if (city?.buildings === 'osm') this.osmLayer.style = FACADES[city.id] ?? FACADES.osm;
     this.osmLayer.defaultLevels = city?.id === 'paris' ? 6 : city?.id === 'newyork' ? 5 : 3;
     void this.buildings.showCity(city);
+    this.updateCityCredit(city);
     if (city?.id !== this.lastCityId) {
       this.lastCityId = city?.id ?? null;
       this.ev.emit('city', { cityId: this.lastCityId });
@@ -264,6 +271,24 @@ export class Game implements GameAPI {
     }
     void lat;
     void lon;
+  }
+
+  // on-screen attribution for the data used in the current city (OSM is always on screen)
+  private cityCredit: Credit | null = null;
+  private osmCredit: Credit | null = null;
+  private updateCityCredit(city: CityDef | null) {
+    const cd = this.viewer.creditDisplay;
+    if (!this.osmCredit) {
+      this.osmCredit = new Credit('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors', true);
+      cd.addStaticCredit(this.osmCredit);
+    }
+    if (this.cityCredit) cd.removeStaticCredit(this.cityCredit);
+    this.cityCredit = null;
+    const text = city ? BUILDING_CREDITS[city.buildings] : undefined;
+    if (text) {
+      this.cityCredit = new Credit(text, true);
+      cd.addStaticCredit(this.cityCredit);
+    }
   }
 
   private updateZone(lat: number, lon: number) {
@@ -323,12 +348,12 @@ export class Game implements GameAPI {
         }),
       );
     }
-    if (withB) {
-      // keep a slightly larger ring of building cells
-      const keepB = new Set<string>();
-      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) keepB.add(cellKey(lat + i * CELL, lon + j * CELL));
-      this.osmLayer.prune(keepB);
-    }
+    // drop queued requests for cells we no longer need (after a teleport the old queue would delay us)
+    const wantedCells = new Set(keep);
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) wantedCells.add(cellKey(lat + i * CELL, lon + j * CELL));
+    setWantedCells(wantedCells);
+    // keep a slightly larger ring of building cells (and none at all outside OSM-building cities)
+    this.osmLayer.prune(withB ? wantedCells : new Set());
     return Promise.all(jobs);
   }
 
@@ -401,8 +426,6 @@ export class Game implements GameAPI {
   }
 
   private async placeMode(mode: TravelMode, x: number, y: number, z: number, heading: number, fresh: boolean) {
-    this.mode = mode;
-    this.input.setMode(mode);
     if (mode === 'car') {
       // snap to the nearest road
       const n = this.roads.nearest(x, y, undefined, 120);
@@ -414,18 +437,40 @@ export class Game implements GameAPI {
         if (Math.abs(((roadHdg - heading + 540) % 360) - 180) > 90) roadHdg += 180;
         hdg = (roadHdg + 360) % 360;
       }
-      const g = this.ground.height(x, y, z + 5) ?? z;
-      this.car.place(x, y, g, hdg);
+      this.car.place(x, y, await this.groundAt(x, y, z), hdg);
     } else if (mode === 'walk') {
-      const g = this.ground.height(x, y, z + 5) ?? z;
-      this.walker.place(x, y, g, heading);
+      this.walker.place(x, y, await this.groundAt(x, y, z), heading);
     } else {
       await this.placePlane(x, y, z, heading, fresh);
     }
+    this.mode = mode;
+    this.input.setMode(mode);
     this.camPos = null;
     this.camYaw = 0;
     this.camDist = mode === 'plane' ? 55 : mode === 'walk' ? 4.5 : 7.5;
     this.camPitch = mode === 'plane' ? -8 : -12;
+  }
+
+  /** reliable ground height for placing the player (mesh cities need an async most-detailed sample) */
+  private async groundAt(x: number, y: number, fallback: number): Promise<number> {
+    if (this.meshGround) {
+      const [lat, lon] = this.roads.toLatLon(x, y);
+      return (await this.sampleMesh(lat, lon)) ?? fallback;
+    }
+    const [lat, lon] = this.roads.toLatLon(x, y);
+    if (this.terrainKind === 'flat') return 0;
+    // read the terrain data itself (the rendered globe can report tile-skirt heights while LODs load)
+    try {
+      const pos = [Cartographic.fromDegrees(lon, lat)];
+      const [c] =
+        this.terrainKind === 'swiss'
+          ? await sampleTerrainMostDetailed(this.viewer.terrainProvider, pos)
+          : await sampleTerrain(this.viewer.terrainProvider, 16, pos);
+      if (c && Number.isFinite(c.height)) return c.height;
+    } catch {
+      /* fall back to the rendered globe */
+    }
+    return this.ground.height(x, y) ?? fallback;
   }
 
   private async placePlane(x: number, y: number, z: number, heading: number, _fresh: boolean) {
@@ -450,7 +495,8 @@ export class Game implements GameAPI {
       // make sure the runway terrain is loaded
       const [slat, slon] = this.roads.toLatLon(sx, sy);
       this.viewer.camera.setView({ destination: Cartesian3.fromDegrees(slon, slat - 0.004, 500), orientation: { heading: 0, pitch: -50 * D2R, roll: 0 } });
-      const g = (await this.waitGround(slat, slon, 8000)) ?? 0;
+      const g0 = (await this.waitGround(slat, slon, 8000)) ?? 0;
+      const g = await this.groundAt(sx, sy, g0);
       this.plane.place(sx, sy, g, hdg, false);
       this.ev.emit('status', { message: `滑走路(${Math.round(best.len)} m)に着きました。推力を上げて離陸しましょう` });
     } else {
@@ -520,9 +566,19 @@ export class Game implements GameAPI {
         else if (ev === 'liftoff') this.ev.emit('status', { message: '離陸しました' });
       }
     }
-    // when the player drives far from the origin, rebase the local frame to keep precision
-    const p = this.pose();
-    if (Math.hypot(p.x, p.y) > 15000 && this.mode !== 'plane') this.rebase();
+    if (this.teleporting) {
+      // the loader positions the camera itself; vehicle poses may be stale relative to the new origin
+      if (this.carModel) this.carModel.show = false;
+      if (this.planeModel) this.planeModel.show = false;
+      this.audio.setEngine({ kind: 'none', rpm: 0, throttle: 0, speed: 0, interior: false });
+      return;
+    }
+    // when the player travels far from the origin, rebase the local frame to keep precision
+    let p = this.pose();
+    if (Math.hypot(p.x, p.y) > 15000) {
+      this.rebase();
+      p = this.pose();
+    }
 
     const [lat, lon] = this.roads.toLatLon(p.x, p.y);
     const position = Cartesian3.fromDegrees(lon, lat, p.z);
@@ -530,7 +586,10 @@ export class Game implements GameAPI {
     this.updateCamera(dt, lat, lon, p, position);
     this.env.update(lat, lon, p.z, position);
 
-    // audio engine (every frame, cheap)
+    // audio engine (~20 Hz is plenty and avoids piling up AudioParam events)
+    this.audioT += dt;
+    if (this.audioT < 0.05) return this.periodic(dt, lat, lon, p);
+    this.audioT = 0;
     if (this.mode === 'car')
       this.audio.setEngine({ kind: 'car', rpm: this.car.rpm, throttle: this.car.throttle, speed: Math.abs(this.car.speed), interior: this.view === 'first' });
     else if (this.mode === 'plane')
@@ -616,9 +675,11 @@ export class Game implements GameAPI {
     this.roads.setOrigin(lat, lon);
     this.meshCache.clear();
     this.meshPending.clear();
+    const dx = p.x; // p aliases one of the poses below, so capture the offset first
+    const dy = p.y;
     for (const v of [this.car.pose, this.walker.pose, this.plane.pose]) {
-      v.x -= p.x;
-      v.y -= p.y;
+      v.x -= dx;
+      v.y -= dy;
     }
     this.camPos = null;
     void this.loadCellsAround(lat, lon, 1);

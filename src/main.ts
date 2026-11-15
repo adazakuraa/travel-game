@@ -26,6 +26,12 @@ async function main() {
   }
   const ui = initUI({ root: uiRoot, game, audio });
   game.on('status', (s) => ui.showToast(s.message));
+  // iOS suspends/interrupts the AudioContext (background, calls): resume on return and on the next touch
+  const resume = () => {
+    if (!document.hidden) void audio.unlock();
+  };
+  document.addEventListener('visibilitychange', resume);
+  addEventListener('pointerdown', resume, { passive: true });
   (window as any).__game = game; // debugging / automated tests
 }
 

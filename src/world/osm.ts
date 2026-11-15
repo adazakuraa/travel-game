@@ -2,6 +2,23 @@
 // Data © OpenStreetMap contributors, ODbL.
 export const CELL = 0.01; // degrees (~1.1 km N-S)
 
+/** metres per degree of latitude / longitude on the WGS84 ellipsoid at a given latitude */
+export function metersPerDegree(lat: number): { kx: number; ky: number } {
+  const r = (lat * Math.PI) / 180;
+  return {
+    ky: 111132.92 - 559.82 * Math.cos(2 * r) + 1.175 * Math.cos(4 * r),
+    kx: 111412.84 * Math.cos(r) - 93.5 * Math.cos(3 * r),
+  };
+}
+
+// cells the game currently wants; queued requests for other cells are dropped (e.g. after a teleport)
+let wanted: Set<string> | null = null;
+export function setWantedCells(keys: Set<string>) {
+  wanted = keys;
+}
+// failed cells cool down before being retried (exponential backoff, Overpass fair use)
+const failures = new Map<string, { n: number; until: number }>();
+
 export interface OsmWay {
   id: number;
   tags: Record<string, string>;
@@ -50,7 +67,13 @@ async function overpass(query: string, attempts = 4, timeoutMs = 25000): Promise
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
       clearTimeout(timer);
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const json = await res.json();
+        // a 200 with a runtime remark means the query timed out / ran out of memory: not a valid empty result
+        if (typeof json.remark === 'string' && /error|timed out|timeout|out of memory/i.test(json.remark))
+          throw new Error('overpass remark: ' + json.remark);
+        return json;
+      }
       lastErr = new Error('overpass ' + res.status);
       if (res.status === 429 || res.status >= 500) {
         endpointIdx++;
@@ -72,6 +95,8 @@ export function loadCell(key: string, withBuildings: boolean): Promise<OsmCell |
   const ck = key + (withBuildings ? ':b' : '');
   let p = cells.get(ck);
   if (p) return p;
+  const f = failures.get(ck);
+  if (f && Date.now() < f.until) return Promise.resolve(null);
   const { s, w, n, e } = cellBBox(key);
   const bbox = `${s},${w},${n},${e}`;
   const q = `[out:json][timeout:30];(
@@ -79,10 +104,11 @@ export function loadCell(key: string, withBuildings: boolean): Promise<OsmCell |
     way["aeroway"="runway"](${bbox});
     ${withBuildings ? `way["building"](${bbox});way["building:part"](${bbox});` : ''}
   );out tags geom;`;
-  p = (queue = queue.then(
-    () => overpass(q),
-    () => overpass(q),
-  )).then(
+  const run = () => {
+    if (wanted && !wanted.has(key)) return Promise.reject(new Error('stale'));
+    return overpass(q, 2);
+  };
+  p = (queue = queue.then(run, run)).then(
     (json: any) => {
       const roads: OsmWay[] = [];
       const buildings: OsmWay[] = [];
@@ -94,11 +120,15 @@ export function loadCell(key: string, withBuildings: boolean): Promise<OsmCell |
         else if (way.tags.aeroway === 'runway') runways.push(way);
         else if (way.tags.building || way.tags['building:part']) buildings.push(way);
       }
+      failures.delete(ck);
       return { key, roads, buildings, runways } as OsmCell;
     },
     (err) => {
-      console.warn('Overpass cell failed', key, err);
       cells.delete(ck); // allow retry later
+      if (String(err).includes('stale')) return null;
+      const n = (failures.get(ck)?.n ?? 0) + 1;
+      failures.set(ck, { n, until: Date.now() + Math.min(300_000, 15_000 * 2 ** (n - 1)) });
+      console.warn('Overpass cell failed', key, err);
       return null;
     },
   );

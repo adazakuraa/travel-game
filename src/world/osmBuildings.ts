@@ -15,7 +15,7 @@ import {
 } from 'cesium';
 import { makeFacadeShader, type FacadeStyle } from './buildings';
 import type { OsmWay } from './osm';
-import { CELL } from './osm';
+import { CELL, metersPerDegree } from './osm';
 
 function parseLen(v: string | undefined): number | null {
   if (!v) return null;
@@ -132,6 +132,9 @@ function toGlb(mesh: Mesh): Uint8Array {
 export class OsmBuildingLayer {
   private models = new Map<string, Model>();
   private pending = new Set<string>();
+  private drawn = new Set<number>();
+  private cellIds = new Map<string, number[]>();
+  private generation = 0;
   style: FacadeStyle;
   defaultLevels = 4;
   private shadows = false;
@@ -167,8 +170,8 @@ export class OsmBuildingLayer {
       const [a, b] = key.split(':').map(Number);
       const lat0 = (a + 0.5) * CELL;
       const lon0 = (b + 0.5) * CELL;
-      const kx = Math.cos((lat0 * Math.PI) / 180) * 111320;
-      const ky = 110540;
+      const { kx, ky } = metersPerDegree(lat0);
+      const gen = this.generation;
       // terrain samples on a 9x9 grid for base heights
       const N = 9;
       const carto: Cartographic[] = [];
@@ -194,7 +197,10 @@ export class OsmBuildingLayer {
       };
       const mesh: Mesh = { pos: [], nrm: [], idx: [] };
       // avoid drawing building outlines that are subdivided into parts at the same height
+      const ids: number[] = [];
       for (const w of ways) {
+        // a building crossing a cell border is returned for both cells: draw it once
+        if (this.drawn.has(w.id)) continue;
         const g = w.geometry;
         if (g.length < 4) continue;
         const t = w.tags;
@@ -217,6 +223,7 @@ export class OsmBuildingLayer {
         const ring: [number, number][] = [];
         for (let i = 0; i < g.length - 1; i++) ring.push([(g[i].lon - lon0) * kx, (g[i].lat - lat0) * ky]);
         addBuilding(mesh, ring, base, minH, h);
+        ids.push(w.id);
       }
       if (!mesh.idx.length) return;
       const glb = toGlb(mesh);
@@ -233,13 +240,15 @@ export class OsmBuildingLayer {
         shadows: this.shadows ? ShadowMode.ENABLED : ShadowMode.DISABLED,
         incrementallyLoadTextures: false,
       });
-      model.readyEvent.addEventListener(() => URL.revokeObjectURL(url));
-      if (!this.pending.has(key)) {
+      URL.revokeObjectURL(url); // the GLB has been fetched by now
+      if (!this.pending.has(key) || gen !== this.generation) {
         model.destroy();
         return;
       }
       this.viewer.scene.primitives.add(model);
       this.models.set(key, model);
+      this.cellIds.set(key, ids);
+      ids.forEach((id) => this.drawn.add(id));
     } catch (e) {
       console.warn('osm buildings cell failed', key, e);
     } finally {
@@ -253,11 +262,14 @@ export class OsmBuildingLayer {
       if (!keep.has(k)) {
         this.viewer.scene.primitives.remove(m);
         this.models.delete(k);
+        this.cellIds.get(k)?.forEach((id) => this.drawn.delete(id));
+        this.cellIds.delete(k);
       }
     }
   }
 
   clear() {
+    this.generation++;
     this.pending.clear();
     this.prune(new Set());
   }

@@ -36,6 +36,7 @@ export class Car {
   roadAssist = true;
   onRoad = false;
   private zVel = 0;
+  private rejectT = 0;
   readonly wheelBase = 2.65;
   readonly maxSpeed = 50;
 
@@ -85,7 +86,7 @@ export class Car {
       const lim = n.seg.half - 0.6;
       this.onRoad = n.dist <= n.seg.half + 0.5;
       if (this.roadAssist) {
-        if (n.dist > lim && n.dist < 45) {
+        if (n.dist > lim && n.dist - lim < 8) {
           const k = lim / n.dist;
           p.x = n.px + (p.x - n.px) * k;
           p.y = n.py + (p.y - n.py) * k;
@@ -117,8 +118,19 @@ export class Car {
     const hn = Math.cos(h) * 1.4;
     // reject samples that jump too far from the current height: on photogrammetry meshes these are
     // walls, roofs, trees or parked vehicles rather than the road surface
-    const ok = (v: number | undefined, tol: number) => (!ground.noisy || (v !== undefined && Math.abs(v - p.z) < tol) ? v : undefined);
-    const g0 = ok(ground.height(p.x, p.y, p.z), 1.2 + Math.abs(this.speed) * 0.05);
+    // on regular terrain only absurd jumps (tile skirts while LODs swap) are rejected
+    const ok = (v: number | undefined, tol: number) => (v !== undefined && Math.abs(v - p.z) < (ground.noisy ? tol : 50) ? v : undefined);
+    const raw0 = ground.height(p.x, p.y, p.z);
+    let g0 = ok(raw0, 1.2 + Math.abs(this.speed) * 0.05);
+    // if the surface keeps disagreeing for a while, we were placed on a roof/canopy (or below the road): resnap
+    if (raw0 !== undefined && g0 === undefined) {
+      this.rejectT += dt;
+      if (ground.noisy && this.rejectT > 1.0 && Math.abs(raw0 - p.z) < 40) {
+        g0 = raw0;
+        p.z = raw0;
+        this.rejectT = 0;
+      }
+    } else this.rejectT = 0;
     const gF = ok(ground.height(p.x + hf, p.y + hn, p.z), 1.0);
     const gB = ok(ground.height(p.x - hf, p.y - hn, p.z), 1.0);
     const gR = ok(ground.height(p.x + Math.cos(h) * 0.8, p.y - Math.sin(h) * 0.8, p.z), 0.5);
@@ -191,7 +203,8 @@ export class Walker {
     p.y += vy * dt;
     this.speed = Math.hypot(vx, vy);
     const g = ground.height(p.x, p.y, p.z + 1.0);
-    if (g !== undefined) p.z = lerp(p.z, g, Math.min(1, dt * 12));
+    // ignore absurd jumps (globe tile skirts while LODs load; roofs/canopies on photogrammetry)
+    if (g !== undefined && Math.abs(g - p.z) < (ground.noisy ? 1.5 : 50)) p.z = lerp(p.z, g, Math.min(1, dt * 12));
   }
 }
 

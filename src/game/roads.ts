@@ -1,6 +1,6 @@
 // Road network built from OSM ways, in a local metric frame around an origin.
 // Used for "road assist": keeping the car on real roads.
-import type { OsmCell, OsmWay } from '../world/osm';
+import { metersPerDegree, type OsmCell, type OsmWay } from '../world/osm';
 
 export interface Seg {
   ax: number;
@@ -59,6 +59,7 @@ export class RoadNetwork {
   lon0 = 0;
   private kx = 1;
   private ky = 110540;
+  private ways = new Set<number>();
   private grid = new Map<string, Seg[]>();
   private loadedCells = new Set<string>();
   segCount = 0;
@@ -66,7 +67,10 @@ export class RoadNetwork {
   setOrigin(lat: number, lon: number) {
     this.lat0 = lat;
     this.lon0 = lon;
-    this.kx = Math.cos((lat * Math.PI) / 180) * 111320;
+    const m = metersPerDegree(lat);
+    this.kx = m.kx;
+    this.ky = m.ky;
+    this.ways.clear();
     this.grid.clear();
     this.loadedCells.clear();
     this.segCount = 0;
@@ -91,6 +95,9 @@ export class RoadNetwork {
   }
 
   private addWay(w: OsmWay) {
+    // Overpass returns the full geometry of every way touching a cell → the same way arrives once per cell
+    if (this.ways.has(w.id)) return;
+    this.ways.add(w.id);
     const t = w.tags;
     if (t.tunnel === 'yes' || t.tunnel === 'building_passage') return;
     if (t.access === 'no' || t.access === 'private') return;
@@ -112,8 +119,23 @@ export class RoadNetwork {
     let [px, py] = this.toLocal(g[0].lat, g[0].lon);
     for (let i = 1; i < g.length; i++) {
       const [x, y] = this.toLocal(g[i].lat, g[i].lon);
-      const seg: Seg = { ax: px, ay: py, bx: x, by: y, half, wayId: w.id, oneway, bridge };
-      this.insert(seg);
+      // split long straight segments so each grid entry stays small (desert/highway straights)
+      const len = Math.hypot(x - px, y - py);
+      const parts = Math.max(1, Math.ceil(len / 60));
+      for (let k = 0; k < parts; k++) {
+        const t0 = k / parts;
+        const t1 = (k + 1) / parts;
+        this.insert({
+          ax: px + (x - px) * t0,
+          ay: py + (y - py) * t0,
+          bx: px + (x - px) * t1,
+          by: py + (y - py) * t1,
+          half,
+          wayId: w.id,
+          oneway,
+          bridge,
+        });
+      }
       px = x;
       py = y;
     }
