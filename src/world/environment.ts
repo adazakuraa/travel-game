@@ -39,8 +39,10 @@ const FOG_SHADER = /* glsl */ `
     vec4 color = texture(colorTexture, v_textureCoordinates);
     float depth = czm_readDepth(depthTexture, v_textureCoordinates);
     if (depth >= 1.0) { out_FragColor = color; return; }
-    vec4 posEC = czm_windowToEyeCoordinates(vec4(gl_FragCoord.xy, depth, 1.0));
-    float d = length(posEC.xyz);
+    // the depth texture handed to post-process stages holds perspective depth of the current frustum
+    float near = czm_currentFrustum.x;
+    float far = czm_currentFrustum.y;
+    float d = near * far / (far - depth * (far - near));
     float f = 1.0 - exp(-pow(d * u_density, 1.35));
     out_FragColor = vec4(mix(color.rgb, u_fogColor, clamp(f, 0.0, 0.97)), color.a);
   }
