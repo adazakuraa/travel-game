@@ -62,9 +62,13 @@ export function createHud(root: HTMLElement, ctx: UiContext): Hud {
     const d = e.localWallClock;
     timeEl.textContent = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     const w = e.weather;
-    const t = w.temperature != null ? ` ${Math.round(w.temperature)}°C` : '';
-    wxEl.textContent = `${WEATHER_ICON[w.kind] ?? ''}${t}`;
-    wxEl.title = WEATHER_LABEL[w.kind] ?? '';
+    const kind = e.weatherOverride ?? w.kind;
+    const hour = d.getUTCHours();
+    const night = hour < 5 || hour >= 19;
+    const icon = night && kind === 'clear' ? '🌙' : night && kind === 'partly' ? '☁️' : WEATHER_ICON[kind] ?? '';
+    const t = w.temperature != null && !e.weatherOverride ? ` ${Math.round(w.temperature)}°C` : '';
+    wxEl.textContent = `${icon}${t}`;
+    wxEl.title = WEATHER_LABEL[kind] ?? '';
   };
 
   const setMode = (mode: TravelMode, view: ViewMode) => {

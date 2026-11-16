@@ -129,7 +129,6 @@ const us: Factory = (ctx, out, hub) => {
     [[C + 5, 'maj7'], [C + 4, 'm7'], [C + 2, 'm7'], [C + 7, '7']],
   ];
   let prog = pick(progs);
-  const lead = 60;
   // close voicing kept inside G3..F#4 so chords stay warm and compact
   const voicing = (r: number, q: Q): number[] =>
     iv[q].map((n) => 55 + ((((r + n) % 12) - (55 % 12) + 12) % 12));

@@ -1,4 +1,4 @@
-import { CATEGORY_ICONS, CATEGORY_LABELS } from '../data/pois';
+import { CATEGORY_LABELS, poiIcon } from '../data/pois';
 import type { Poi } from '../types';
 import { fetchSummary } from '../services/wiki';
 import { haversine } from '../services/geo';
@@ -15,7 +15,7 @@ export function poiToSubject(poi: Poi): CardSubject {
     name: poi.name,
     nameLocal: poi.nameLocal,
     categoryLabel: CATEGORY_LABELS[poi.category] ?? poi.category,
-    icon: CATEGORY_ICONS[poi.category] ?? '📍',
+    icon: poiIcon(poi),
     lat: poi.lat,
     lon: poi.lon,
     heading: poi.heading,
@@ -56,7 +56,7 @@ export function createPoiCard(ctx: UiContext) {
     const summaryEl = h('p', { class: 'poi-summary', text: s.summary ?? '' });
     const wikiLink = h('a', { class: 'poi-link', target: '_blank', rel: 'noopener noreferrer', text: 'Wikipedia で読む ↗' });
     wikiLink.style.display = 'none';
-    const credit = h('p', { class: 'poi-credit' }, '写真・出典: Wikipedia/Wikimedia Commons (CC BY-SA) ', wikiLink);
+    const credit = h('p', { class: 'poi-credit' }, '写真・出典: Wikipedia / Wikimedia Commons (CC BY-SA) ', wikiLink);
     credit.style.display = 'none';
 
     const sections: HTMLElement[] = [];
@@ -94,9 +94,14 @@ export function createPoiCard(ctx: UiContext) {
 
     void fetchSummary(s.wikiJa, s.wikiEn).then((w) => {
       if (my !== seq || !w) return;
-      const src = w.image ?? w.thumbnail;
-      if (src) img.src = w.thumbnail && window.innerWidth < 600 ? w.thumbnail : src;
-      else photo.remove();
+      const thumb = w.thumbnail ?? w.image;
+      if (thumb) {
+        const big = thumb.replace(/\/(\d+)px-/, '/500px-');
+        if (big !== thumb) {
+          img.addEventListener('error', () => { if (img.src !== thumb) img.src = thumb; }, { once: true });
+          img.src = big;
+        } else img.src = thumb;
+      } else photo.remove();
       wikiLink.href = w.pageUrl;
       wikiLink.style.display = '';
       credit.style.display = '';

@@ -39,8 +39,8 @@ const LAYERS: LayerDef[] = [
     id: 'ign',
     url: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg',
     maximumLevel: 19,
-    minimumLevel: 8,
-    rect: [-5.2, 42.3, 8.3, 51.1],
+    minimumLevel: 11,
+    rect: [-5.2, 42.3, 7.6, 51.1],
     credit: 'Orthophotos © IGN – Géoplateforme (Licence Ouverte Etalab 2.0)',
   },
   {
@@ -79,7 +79,7 @@ export function addImagery(viewer: Viewer): void {
       maximumLevel: def.maximumLevel,
       minimumLevel: def.minimumLevel ?? 0,
       rectangle: def.rect ? Rectangle.fromDegrees(...def.rect) : undefined,
-      credit: new Credit(def.credit, false),
+      credit: new Credit(def.credit, false), // full list in the attribution pop-up; the city credit is on screen
       enablePickFeatures: false,
     });
     const layer = new ImageryLayer(provider, {

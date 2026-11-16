@@ -1,8 +1,10 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+// bundle the MapLibre worker explicitly so it also works under vite dev pre-bundling
+import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Map as MlMap, Marker, Popup } from 'maplibre-gl';
 import type { PoiCategory } from '../types';
 import { CITIES } from '../data/cities';
-import { CATEGORY_ICONS, CATEGORY_LABELS, POIS } from '../data/pois';
+import { CATEGORY_ICONS, CATEGORY_LABELS, POIS, poiIcon } from '../data/pois';
 import { flagEmoji, haversine, loadCountriesGeoJSON } from '../services/geo';
 import { geosearch, type WikiNearby } from '../services/wiki';
 import { recordsStore } from './tracker';
@@ -51,7 +53,9 @@ export function createMapPanel(ctx: UiContext) {
   const tabsEl = h('div', { class: 'wt-tabs' });
   const chipsEl = h('div', { class: 'wt-chips' });
   const listEl = h('div', { class: 'mp-list' });
-  const side = h('div', { class: 'mp-side' }, search, tabsEl, chipsEl, listEl);
+  const handle = h('button', { class: 'mp-handle', 'aria-label': '一覧を広げる/縮める', onclick: () => side.classList.toggle('expanded') });
+  const side = h('div', { class: 'mp-side' }, handle, search, tabsEl, chipsEl, listEl);
+  search.addEventListener('focus', () => side.classList.add('expanded'));
   panel.body.append(h('div', { class: 'mp-layout' }, mapWrap, side));
 
   // ---------- helpers
@@ -137,13 +141,13 @@ export function createMapPanel(ctx: UiContext) {
     } else if (tab === 'pois') {
       const items = POIS.filter(matchPoi).map((x) => ({ x, d: haversine(p.lat, p.lon, x.lat, x.lon) })).sort((a, b) => a.d - b.d);
       for (const { x, d } of items.slice(0, 200)) {
-        listEl.append(row(CATEGORY_ICONS[x.category], x.name, `${cityName(x.cityId)?.name ?? ''} ・ ${fmtDist(d)}`, () => { flyTo(x.lat, x.lon, 15); poiSubject(x); }, goBtn(x)));
+        listEl.append(row(poiIcon(x), x.name, `${cityName(x.cityId)?.name ?? ''} ・ ${fmtDist(d)}`, () => { flyTo(x.lat, x.lon, 15); poiSubject(x); }, goBtn(x)));
       }
       if (!items.length) listEl.append(h('p', { class: 'wt-empty', text: '見つかりません' }));
     } else {
       const near = POIS.map((x) => ({ x, d: haversine(p.lat, p.lon, x.lat, x.lon) })).filter((e) => e.d <= 30000 && matchPoi(e.x)).sort((a, b) => a.d - b.d);
       listEl.append(h('div', { class: 'mp-sub' }, h('b', { text: '周辺の観光地 (30km以内)' }), h('button', { class: 'wt-btn wt-btn-small', text: '↻ 更新', onclick: () => void loadNearby(true) })));
-      for (const { x, d } of near) listEl.append(row(CATEGORY_ICONS[x.category], x.name, fmtDist(d), () => { flyTo(x.lat, x.lon, 15); poiSubject(x); }, goBtn(x)));
+      for (const { x, d } of near) listEl.append(row(poiIcon(x), x.name, fmtDist(d), () => { flyTo(x.lat, x.lon, 15); poiSubject(x); }, goBtn(x)));
       if (!near.length) listEl.append(h('p', { class: 'wt-empty', text: '30km圏内に登録された観光地はありません' }));
       listEl.append(h('div', { class: 'mp-sub' }, h('b', { text: 'Wikipedia: 周辺のスポット (10km以内)' })));
       if (wikiState === 'loading') listEl.append(h('p', { class: 'wt-empty', text: '検索中…' }));
@@ -220,13 +224,14 @@ export function createMapPanel(ctx: UiContext) {
 
   async function buildMap(): Promise<void> {
     ml = await import('maplibre-gl');
+    try { ml.setWorkerUrl(mlWorkerUrl); } catch { /* keep default worker */ }
     const p = player();
     map = new ml.Map({
       container: mapEl,
       style: STYLE_URL,
       center: [p.lon, p.lat],
       zoom: 12,
-      attributionControl: { compact: false, customAttribution: 'OpenFreeMap © OpenMapTiles Data from OpenStreetMap' },
+      attributionControl: { compact: false },
     });
     map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
     const m = map;
@@ -235,7 +240,7 @@ export function createMapPanel(ctx: UiContext) {
     const pe = h('div', { class: 'mk-player' }, h('i'));
     playerMarker = new ml.Marker({ element: pe, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat([p.lon, p.lat]).setRotation(p.heading).addTo(m);
     for (const poi of POIS) {
-      const el = markerEl('mk mk-poi', CATEGORY_ICONS[poi.category], poi.name, () => poiSubject(poi));
+      const el = markerEl('mk mk-poi', poiIcon(poi), poi.name, () => poiSubject(poi));
       poiMarkers.set(poi.id, el);
       new ml.Marker({ element: el }).setLngLat([poi.lon, poi.lat]).addTo(m);
     }
@@ -258,11 +263,11 @@ export function createMapPanel(ctx: UiContext) {
       popup = new ml!.Popup({ closeButton: true, offset: 8, maxWidth: '240px' }).setLngLat(e.lngLat).setDOMContent(box).addTo(m);
     });
 
-    m.on('load', async () => {
+    m.once('style.load', async () => {
       const gj = await loadCountriesGeoJSON();
       if (gj) {
         m.addSource('countries', { type: 'geojson', data: gj });
-        m.addLayer({ id: 'visited-fill', type: 'fill', source: 'countries', filter: ['==', 1, 0], paint: { 'fill-color': '#1fd1bd', 'fill-opacity': 0.5 }, layout: { visibility: 'none' } });
+        m.addLayer({ id: 'visited-fill', type: 'fill', source: 'countries', filter: ['==', ['get', 'iso'], '__none__'], paint: { 'fill-color': '#1fd1bd', 'fill-opacity': 0.7 }, layout: { visibility: 'none' } });
         m.addLayer({ id: 'visited-line', type: 'line', source: 'countries', paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.8 }, layout: { visibility: 'none' } });
       }
       m.addSource('visited-cities-src', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

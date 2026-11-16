@@ -10,16 +10,17 @@ const WEATHERS: WeatherKind[] = ['clear', 'partly', 'cloudy', 'fog', 'rain', 'sn
 
 const CREDITS: [string, string][] = [
   ['CesiumJS', 'Apache-2.0'],
-  ['国土交通省 PLATEAU', '3D都市モデル。CC BY 4.0 互換: 出典表記'],
+  ['ヘルシンキ市 3D reality mesh', 'CC BY 4.0'],
+  ['国土交通省 PLATEAU', '3D都市モデル'],
   ['国土地理院 地理院タイル', '出典: 国土地理院'],
-  ['swisstopo', '© swisstopo, OGD'],
+  ['swisstopo OGD', '© swisstopo'],
   ['PDOK luchtfoto', 'CC BY 4.0'],
-  ['3DBAG', 'CC BY 4.0, © 3DBAG by tudelft3d & 3DGI'],
-  ['IGN Géoplateforme', 'Licence Ouverte Etalab 2.0'],
+  ['3DBAG', 'CC BY 4.0, © tudelft3d & 3DGI'],
+  ['IGN Géoplateforme', 'Licence Ouverte 2.0'],
   ['USGS The National Map', 'パブリックドメイン'],
   ['Sentinel-2 cloudless by EOX', 'CC BY-NC-SA 4.0 (contains modified Copernicus Sentinel data)'],
   ['AWS Terrain Tiles / Mapzen', 'SRTM, GMTED, ETOPO1 ほか'],
-  ['OpenStreetMap contributors', 'ODbL (Overpass API 経由)'],
+  ['OpenStreetMap contributors', 'ODbL / Overpass API'],
   ['OpenFreeMap / OpenMapTiles', '© OpenMapTiles Data from OpenStreetMap'],
   ['Open-Meteo', 'CC BY 4.0'],
   ['Wikipedia / Wikimedia Commons', 'CC BY-SA'],
@@ -105,21 +106,24 @@ export function createSettingsPanel(ctx: UiContext) {
     return h('label', { class: 'set-row' }, h('span', { text: label }), inp);
   };
 
+  const li = (t: string) => h('li', { text: t });
   const help = h(
     'div', { class: 'set-help' },
-    h('h4', { text: 'キーボード' }),
+    h('h4', { text: 'キーボード: 車' }),
+    h('ul', {}, li('W/↑ アクセル　S/↓ ブレーキ・後退　A/D 操舵　Space ホーン')),
+    h('h4', { text: 'キーボード: 徒歩' }),
+    h('ul', {}, li('WASD 移動　Shift で走る　ドラッグで視線')),
+    h('h4', { text: 'キーボード: 飛行機' }),
     h('ul', {},
-      h('li', { text: 'W/A/S/D または 矢印キー: 移動・旋回' }),
-      h('li', { text: 'Shift: ダッシュ / ブースト　Space: ブレーキ・ジャンプ' }),
-      h('li', { text: '1 / 2 / 3: 車 / 徒歩 / 飛行機　V: 視点切替' }),
-      h('li', { text: 'M: 地図　H: HUD表示切替　Esc: パネルを閉じる' }),
-    ),
-    h('h4', { text: 'タッチ操作' }),
+      li('Shift/R 推力+　Ctrl/F 推力−'),
+      li('↑/W 機首下げ　↓/S 機首上げ　←→ ロール'),
+      li('Q/E ラダー　B ブレーキ　G ギア')),
+    h('h4', { text: '共通' }),
     h('ul', {},
-      h('li', { text: '左下のジョイスティック: 移動・旋回' }),
-      h('li', { text: '右下のペダル: アクセル / ブレーキ' }),
-      h('li', { text: '画面ドラッグ: 視点を回す' }),
-    ),
+      li('V 視点　1/2/3 車/徒歩/飛行機　M 地図　H UI非表示'),
+      li('ドラッグでカメラ　ホイールで距離　Esc でパネルを閉じる')),
+    h('h4', { text: 'タッチ' }),
+    h('ul', {}, li('左スティックで移動　右ペダルでアクセル/ブレーキ　画面ドラッグでカメラ')),
   );
 
   const credits = h('ul', { class: 'set-credits' });
