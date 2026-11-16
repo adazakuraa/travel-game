@@ -82,7 +82,7 @@ src/
   main.ts            起動(Cesium資産パス、ジオイド読込、Game/UI/Audio 結線)
   types.ts           モジュール間の契約(GameAPI / AudioAPI / イベント / POI 型)
   core/events.ts     型付きイベント
-  data/              cities.ts(12都市) / pois.ts(観光地) / plateau.generated.json
+  data/              cities.ts(16都市) / pois.ts(観光地) / plateau.generated.json
   world/             viewer / terrain / imagery / buildings / osm / osmBuildings / environment / geoid
   game/              game.ts(ループ・カメラ・テレポート) / vehicles.ts / roads.ts / input.ts
   ui/                タイトル・HUD・地図・観光地カード・お気に入り・訪問記録・設定
